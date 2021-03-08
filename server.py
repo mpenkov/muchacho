@@ -6,7 +6,7 @@ import sqlite3
 import cherrypy
 
 DB_STRING = os.path.join(os.path.dirname(__file__), 'muchacho.sqlite3')
-OUTPUT_FORMAT = 'muchacho/%(id)s.%(ext)s'
+OUTPUT_FORMAT = 'gitignore/%(id)s.%(ext)s'
 
 
 def setup_database():
@@ -19,13 +19,17 @@ class Server:
     def GET(self):
         return 'hello'
 
-    def POST(self):
-        url = json.load(cherrypy.request.body)['url']
+    def POST(self, url=None):
+        # TODO: Why can't cherrypy extract the URL parameter by itself??
+        if not url:
+            url = json.load(cherrypy.request.body)['url']
+
         assert url
 
-        # TODO: do we need youtube-dl here just for the ID extraction?
         json_bytes = subprocess.check_output(['youtube-dl', '--dump-json', url])
         video_id = json.loads(json_bytes)['id']
+
+        # TODO: is it better to keep the DB next to the video files?
 
         with sqlite3.connect(DB_STRING) as conn:
             cursor = conn.cursor()
@@ -35,10 +39,9 @@ class Server:
             if result == 0:
                 # TODO: perform the download in a separate process
                 command = [
-                    'ssh', 'oberon',
-                    'py39.venv/bin/youtube-dl', url,
+                    'youtube-dl', url,
                     '--format', 'best',
-                    '--output', OUTPUT_FORMAT.replace('(', '\\(').replace(')', '\\)'),
+                    '--output', OUTPUT_FORMAT,
                     '--print-json',
                 ]
                 json_bytes = subprocess.check_output(command)
