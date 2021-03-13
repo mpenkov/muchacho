@@ -28,7 +28,11 @@ class Video:
     The metadata and filename must be named similarly to the video file.
     """
     def __init__(self, path):
-        subdir, filename = os.path.split(path)
+        self.reload(path)
+
+    def reload(self, path):
+        self._path = path
+        subdir, filename = os.path.split(self._path)
         stem, ext = os.path.splitext(filename)
         self._subdir = subdir
         self._filename = filename
@@ -42,47 +46,6 @@ class Video:
                 break
         else:
             self._thumb_filename = None
-
-    def move(self, subdirectory):
-        os.makedirs(subdirectory, exist_ok=True)
-
-        for f in self.files:
-            if f:
-                assert not os.path.isfile(os.path.join(subdirectory, f))
-
-        for f in self.files:
-            if f:
-                os.rename(os.path.join(self._subdir, f), os.path.join(subdirectory, f))
-
-        self._subdir = subdirectory
-
-    def rename(self, formatstr='%(id)s.%(ext)s'):
-        filename = formatstr % self.load_meta()
-        stem, ext = os.path.splitext(filename)
-        files = (filename, stem + '.info.json', stem + '-thumb.jpg')
-        for f in files:
-            if f:
-                assert not os.path.isfile(os.path.join(self._subdir, f))
-
-        for src, dst in zip(self.files, files):
-            if src:
-                os.rename(os.path.join(self._subdir, src), os.path.join(self._subdir, dst))
-
-        self._filename, self._meta_filename, self._thumb_filename = files
-
-    def fetch_thumbnail_jpg(self):
-        """Fetch the thumbnail of the video and convert it JPEG.
-
-        YouTube sometimes serves WebP thumbnails, and they aren't as widely supported.
-        """
-        meta = self.load_meta()
-        stem, ext = os.path.splitext(self._filename)
-        thumb_path = os.path.join(self._subdir, stem + '-thumb.jpg')
-
-        with tempfile.NamedTemporaryFile(prefix=self._filename) as tmp:
-            tmp.write(urllib.request.urlopen(meta['thumbnail']).read())
-            tmp.flush()
-            subprocess.check_call(['ffmpeg', '-y', '-i', tmp.name, thumb_path])
 
     @property
     def files(self):
@@ -99,6 +62,14 @@ class Video:
     @property
     def thumb_path(self):
         return os.path.join(self._subdir, self._thumb_filename)
+
+    @property
+    def subdir(self):
+        return self._subdir
+
+    @property
+    def filename(self):
+        return self._filename
 
     def load_meta(self):
         with open(self.meta_path) as fin:
@@ -158,3 +129,27 @@ class Cache:
         info.pop('formats', None)
         info.pop('requested_formats', None)
         print(json.dumps(info, indent=2, sort_keys=True))
+
+    def rename(self, video, relpath):
+        abspath = os.path.join(self._subdir, relpath)
+        abs_stem, ext = os.path.splitext(abspath)
+
+        destination_files = (
+            abspath,
+            abs_stem + '.info.json',
+            abs_stem + '-thumb%s' % os.path.splitext(video.thumb_path)[1],
+        )
+        for f in destination_files:
+            assert not os.path.isfile(f)
+
+        source_files = [
+            os.path.join(video._subdir, f) if f else None
+            for f in video.files
+        ]
+        os.makedirs(os.path.dirname(abspath), exist_ok=True)
+
+        for src, dst in zip(source_files, destination_files):
+            if src:
+                os.rename(src, dst)
+
+        video.reload(abspath)
