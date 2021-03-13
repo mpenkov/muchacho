@@ -38,8 +38,12 @@ class Video:
         self._filename = filename
         self._meta_filename = stem + '.info.json'
 
-        # youtube-dl suffix is .jpg, but kodi looks for -thumb.jpg
-        candidates = (stem + '.jpg', stem + '-thumb.jpg', stem + '.webp')
+        candidates = (
+            stem + '.jpg',
+            stem + '.webp',
+            stem + '-thumb.jpg',
+            stem + '-thumb.webp',
+        )
         for c in candidates:
             if os.path.isfile(os.path.join(subdir, c)):
                 self._thumb_filename = c
@@ -61,6 +65,8 @@ class Video:
 
     @property
     def thumb_path(self):
+        if not self._thumb_filename:
+            return None
         return os.path.join(self._subdir, self._thumb_filename)
 
     @property
