@@ -87,7 +87,7 @@ class Cache:
     def reload(self):
         self._videos = {}
 
-        for root, directories, files in os.walk(subdir):
+        for root, directories, files in os.walk(self._subdir):
             if root == _TO_ADD:
                 continue
             for f in files:
