@@ -82,6 +82,9 @@ class Video:
 class Cache:
     def __init__(self, subdir):
         self._subdir = subdir
+        self.reload()
+
+    def reload(self):
         self._videos = {}
 
         for root, directories, files in os.walk(subdir):
@@ -150,6 +153,7 @@ class Cache:
 
         for src, dst in zip(source_files, destination_files):
             if src:
+                print('mv %r %r' % (src, dst))
                 os.rename(src, dst)
 
         video.reload(abspath)

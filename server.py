@@ -30,6 +30,7 @@ class Api:
     @cherrypy.tools.json_out()
     def GET(self, videoid=None, action=None, formatstr=None):
         if videoid is None:
+            self.cache.reload()
             return [
                 {
                     "id": i,
