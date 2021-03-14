@@ -44,16 +44,17 @@ class Video:
             assert match
             videoid = match.group(1)
             command = ['youtube-dl', '--dump-json', videoid]
+            output = subprocess.check_output(command)
             with open(self.meta_path, 'wb') as fout:
-                subprocess.check_call(command, stdout=fout)
+                fout.write(output)
 
     def assert_thumbnail(self):
         if not os.path.isfile(self.thumb_path):
             meta = self.load_meta()
             url = meta['thumbnail']
             ext = os.path.splitext(url)[1]
+            buf = urllib.request.urlopen(url).read()
             with tempfile.NamedTemporaryFile(suffix=ext) as tmp:
-                buf = urllib.request.urlopen(url).read()
                 tmp.write(buf)
                 tmp.flush()
                 _postprocess_thumbnail(tmp.name, self.thumb_path, unlink=False)
@@ -108,7 +109,10 @@ class Cache:
                 stem, ext = os.path.splitext(f)
                 if ext.lower() in ('.mp4', '.avi', '.mkv'):
                     video = Video(os.path.join(root, f))
-                    meta = video.load_meta()
+                    try:
+                        meta = video.load_meta()
+                    except FileNotFoundError:
+                        continue
                     self._videos[meta['id']] = video
 
     def __contains__(self, videoid):
