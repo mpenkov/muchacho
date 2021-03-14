@@ -49,7 +49,7 @@ class Api:
 
         elif action == 'preview_relpath':
             if formatstr[0] == '/':
-                formatstr = os.path.join(cache._subdir, formatstr)
+                formatstr = os.path.join(self.cache._subdir, formatstr)
             else:
                 formatstr = os.path.join(video.subdir, formatstr)
 

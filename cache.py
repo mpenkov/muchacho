@@ -107,7 +107,7 @@ class Cache:
                 continue
             for f in files:
                 stem, ext = os.path.splitext(f)
-                if ext.lower() in ('.mp4', '.avi', '.mkv'):
+                if ext.lower() in ('.mp4', '.avi', '.mkv', '.webm'):
                     video = Video(os.path.join(root, f))
                     try:
                         meta = video.load_meta()
