@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -36,24 +37,31 @@ class Video:
         stem, ext = os.path.splitext(filename)
         self._subdir = subdir
         self._filename = filename
-        self._meta_filename = stem + '.info.json'
 
-        candidates = (
-            stem + '.jpg',
-            stem + '.webp',
-            stem + '-thumb.jpg',
-            stem + '-thumb.webp',
-        )
-        for c in candidates:
-            if os.path.isfile(os.path.join(subdir, c)):
-                self._thumb_filename = c
-                break
-        else:
-            self._thumb_filename = None
+    def assert_meta(self):
+        if not os.path.isfile(self.meta_path):
+            match = re.search(r'\[([A-Za-z0-9_-]{11})\]', self.filename)
+            assert match
+            videoid = match.group(1)
+            command = ['youtube-dl', '--dump-json', videoid]
+            with open(self.meta_path, 'wb') as fout:
+                subprocess.check_call(command, stdout=fout)
+
+    def assert_thumbnail(self):
+        if not os.path.isfile(self.thumb_path):
+            meta = self.load_meta()
+            url = meta['thumbnail']
+            ext = os.path.splitext(url)[1]
+            with tempfile.NamedTemporaryFile(suffix=ext) as tmp:
+                buf = urllib.request.urlopen(url).read()
+                tmp.write(buf)
+                tmp.flush()
+                _postprocess_thumbnail(tmp.name, self.thumb_path, unlink=False)
 
     @property
     def files(self):
-        return (self._filename, self._meta_filename, self._thumb_filename)
+        stem, _ = os.path.splitext(self._filename)
+        return (self._filename, stem + '.info.json', stem + '-thumb.jpg')
 
     @property
     def path(self):
@@ -61,13 +69,13 @@ class Video:
 
     @property
     def meta_path(self):
-        return os.path.join(self._subdir, self._meta_filename)
+        stem, _ = os.path.splitext(self._filename)
+        return os.path.join(self._subdir, stem + '.info.json')
 
     @property
     def thumb_path(self):
-        if not self._thumb_filename:
-            return None
-        return os.path.join(self._subdir, self._thumb_filename)
+        stem, _ = os.path.splitext(self._filename)
+        return os.path.join(self._subdir, stem + '-thumb.jpg')
 
     @property
     def subdir(self):
@@ -139,6 +147,12 @@ class Cache:
         info.pop('requested_formats', None)
         print(json.dumps(info, indent=2, sort_keys=True))
 
+        for ext in ('.jpg', '.webp'):
+            thumb_name = ('%(title)s-%(id)s' % info) + ext
+            thumb_path = os.path.join(self._subdir, thumb_name)
+            if os.path.isfile(thumb_path):
+                _postprocess_thumbnail(thumb_path)
+
     def rename(self, video, relpath):
         abspath = os.path.join(self._subdir, relpath)
         abs_stem, ext = os.path.splitext(abspath)
@@ -146,20 +160,33 @@ class Cache:
         destination_files = (
             abspath,
             abs_stem + '.info.json',
-            abs_stem + '-thumb%s' % os.path.splitext(video.thumb_path)[1],
+            abs_stem + '-thumb.jpg',
         )
         for f in destination_files:
             assert not os.path.isfile(f)
 
         source_files = [
-            os.path.join(video._subdir, f) if f else None
+            os.path.join(video._subdir, f)
             for f in video.files
         ]
         os.makedirs(os.path.dirname(abspath), exist_ok=True)
 
         for src, dst in zip(source_files, destination_files):
-            if src:
-                print('mv %r %r' % (src, dst))
-                os.rename(src, dst)
+            print('mv %r %r' % (src, dst))
+            os.rename(src, dst)
 
         video.reload(abspath)
+
+
+def _postprocess_thumbnail(input_path, output_path=None, unlink=True):
+    if output_path is None:
+        stem, ext = os.path.splitext(input_path)
+        output_path = stem + '-thumb.jpeg'
+    assert output_path
+    assert output_path != input_path
+
+    command = ['ffmpeg', '-y', '-i', input_path, output_path]
+    subprocess.check_call(command)
+
+    if unlink:
+        os.unlink(input_path)
