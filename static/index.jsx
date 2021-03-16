@@ -1,6 +1,11 @@
 function reducer(state, action) {
   console.debug('reducer action.type', action.type);
   switch (action.type) {
+    case 'CURRENT_SUBDIR_UPDATED':
+      return {
+        ...state,
+        currentSubdir: action.payload,
+      };
     case 'PATH_UPDATED':
       console.debug(action);
       {
@@ -77,21 +82,41 @@ const Video = ({video, state, dispatchState}) => {
   return (
     <div className="Video">
       <img className="VideoThumbnail" src={thumbnail} />
-      <span className="VideoId">{video.id}</span>
-      <span className={`VideoPath ${dirtyClass}`}>{video.relpath}</span>
-      <input type="text" placeholder="formatstr" onKeyUp={handleKeyPress} />
-      <button type="button" onClick={handleClick}>Rename</button>
+      <span className="VideoMetadata">
+        <span className="VideoId">{video.id}</span>
+        <span className={`VideoPath ${dirtyClass}`}>{video.relpath}</span>
+        <input type="text" placeholder="formatstr" onKeyUp={handleKeyPress} />
+        <button type="button" onClick={handleClick}>Rename</button>
+      </span>
       
     </div>
   );
 };
 
-function App() {
-  const defaultState = {
-    videoList: [],
+const SubdirSelector = ({state, dispatchState}) => {
+  // TODO: show a graphical layout of existing prefixes as well as text entry
+  const handleChange = event => {
+    console.debug('SubdirSelector.handleChange', event.target.value);
+    dispatchState({type: 'CURRENT_SUBDIR_UPDATED', payload: event.target.value});
   };
-  const [state, dispatchState] = React.useReducer(reducer, defaultState);
 
+  const handleClick = event => {
+    console.debug('SubdirSelector.handleClick', event.target.value);
+    loadSubdir(state, dispatchState);
+    event.preventDefault();
+  };
+
+  return (
+    <div className="SubdirSelector">
+      <form>
+        <input type="text" onChange={handleChange} value={state.currentSubdir} />
+        <button type="submit" onClick={handleClick}>Go</button>
+      </form>
+    </div>
+  );
+};
+
+function loadSubdir(state, dispatchState) {
   function loadVideos(videoList, index) {
     if (index < videoList.length) {
       fetch(`/videos/${videoList[index].id}`)
@@ -103,21 +128,28 @@ function App() {
     }
   }
 
-  function initialize() {
-    fetch("/videos")
-      .then(response => response.json())
-      .then(response => {
-        dispatchState({type: 'VIDEOLIST_LOADED', payload: response});
-        loadVideos(response, 0);
-      });
+  const encodedSubdir = encodeURIComponent(state.currentSubdir);
+  fetch(`/videos?subdir=${encodedSubdir}`)
+    .then(response => response.json())
+    .then(response => {
+      dispatchState({type: 'VIDEOLIST_LOADED', payload: response});
+      loadVideos(response, 0);
+    });
+}
 
-  }
+function App() {
+  const defaultState = {
+    videoList: [],
+    currentSubdir: 'unsorted',
+  };
+  const [state, dispatchState] = React.useReducer(reducer, defaultState);
 
-  React.useEffect(initialize, []);
+  React.useEffect(() => loadSubdir(state, dispatchState), []);
 
   return (
     <div>
       <h2>Videos</h2>
+      <SubdirSelector state={state} dispatchState={dispatchState} />
       <div className="VideoList">
         {state.videoList.map(v => <Video key={`Video_${v.id}`} video={v} state={state} dispatchState={dispatchState} />)}
       </div>

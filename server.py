@@ -28,30 +28,35 @@ class Api:
         self.cache = cache_
 
     @cherrypy.tools.json_out()
-    def GET(self, videoid=None, action=None, formatstr=None):
+    def GET(self, videoid=None, action=None, formatstr=None, subdir=''):
         if videoid is None:
             self.cache.reload()
-            return [
+            videos = [
                 {
                     "id": i,
                     "relpath": _relpath(self.cache, self.cache[i].path),
                 } for i in self.cache
             ]
+            subdir = subdir.strip('/')
+            videos = [v for v in videos if v['relpath'].startswith(subdir)]
+            return videos
 
         video = self.cache[videoid]
 
         if action is None:
             return {
                 'id': videoid,
-                "relpath": _relpath(self.cache, video.path),
+                'relpath': _relpath(self.cache, video.path),
                 'meta': video.load_meta(),
             }
 
         elif action == 'preview_relpath':
             if formatstr[0] == '/':
-                formatstr = os.path.join(self.cache._subdir, formatstr)
+                formatstr = os.path.join(self.cache._subdir, formatstr[1:])
             else:
                 formatstr = os.path.join(video.subdir, formatstr)
+
+            print(formatstr)
 
             try:
                 path = formatstr % video.load_meta()
@@ -93,8 +98,11 @@ def main():
     parser.add_argument('--subdir', default=os.path.join(os.path.dirname(__file__), 'gitignore'))
     args = parser.parse_args()
 
-    monitor = multiprocessing.Process(target=cache.monitor, args=(args.subdir, ))
-    monitor.daemon = True
+    terminate_event = multiprocessing.Event()
+    monitor = multiprocessing.Process(
+        target=cache.monitor,
+        args=(args.subdir, terminate_event),
+    )
     monitor.start()
 
     root = os.path.abspath(os.path.dirname(__file__))
@@ -116,7 +124,12 @@ def main():
     cache_ = cache.Cache(args.subdir)
     server = Server(cache_)
     server.videos = Api(cache_)
-    cherrypy.quickstart(server, '/', conf)
+    try:
+        cherrypy.quickstart(server, '/', conf)
+    finally:
+        terminate_event.set()
+        monitor.terminate()
+        # monitor.join()
 
 
 if __name__ == '__main__':

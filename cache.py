@@ -10,15 +10,16 @@ import urllib.request
 _TO_ADD = '.to-add'
 
 
-def monitor(subdir, sleep_seconds=60):
+def monitor(subdir, terminate_event, sleep_seconds=60):
     cache = Cache(subdir)
-    os.makedirs(os.path.join(subdir, _TO_ADD), exist_ok=True)
+    to_add_subdir = os.path.join(subdir, _TO_ADD)
+    os.makedirs(to_add_subdir, exist_ok=True)
 
-    while True:
-        for videoid in os.listdir(os.path.join(subdir, _TO_ADD)):
+    while not terminate_event.is_set():
+        for videoid in os.listdir(to_add_subdir):
             logging.info('adding %s', videoid)
             cache.add(videoid)
-            os.unlink(os.path.join(subdir, _TO_ADD, videoid))
+            os.unlink(os.path.join(to_add_subdir, videoid))
         logging.info('sleeping for %ds', sleep_seconds)
         time.sleep(sleep_seconds)
 
@@ -138,13 +139,18 @@ class Cache:
             raise ValueError('cache already contains video with id %r' % videoid)
 
         command = [
-            'youtube-dl', videoid,
+            'youtube-dl',
             '--format', 'best',
             '--print-json',
             '--write-info-json',
             '--write-thumbnail',
+            '--id',
+            '--',
+            videoid,
         ]
-        json_bytes = subprocess.check_output(command, cwd=self._subdir)
+        subdir = os.path.join(self._subdir, 'unsorted')
+        os.makedirs(subdir, exist_ok=True)
+        json_bytes = subprocess.check_output(command, cwd=subdir)
         json_str = json_bytes.decode('utf-8')
         info = json.loads(json_str)
         info.pop('formats', None)
@@ -152,10 +158,12 @@ class Cache:
         print(json.dumps(info, indent=2, sort_keys=True))
 
         for ext in ('.jpg', '.webp'):
-            thumb_name = ('%(title)s-%(id)s' % info) + ext
-            thumb_path = os.path.join(self._subdir, thumb_name)
+            thumb_name = info['id'] + ext
+            thumb_path = os.path.join(subdir, thumb_name)
             if os.path.isfile(thumb_path):
                 _postprocess_thumbnail(thumb_path)
+        else:
+            assert False, 'could not find downloaded thumbnail for video'
 
     def rename(self, video, relpath):
         abspath = os.path.join(self._subdir, relpath)
@@ -167,7 +175,7 @@ class Cache:
             abs_stem + '-thumb.jpg',
         )
         for f in destination_files:
-            assert not os.path.isfile(f)
+            assert not os.path.isfile(f), 'destination %r already exists' % f
 
         source_files = [
             os.path.join(video._subdir, f)
@@ -189,7 +197,7 @@ def _postprocess_thumbnail(input_path, output_path=None, unlink=True):
     assert output_path
     assert output_path != input_path
 
-    command = ['ffmpeg', '-y', '-i', input_path, output_path]
+    command = ['ffmpeg', '-y', '-i', input_path, '--', output_path]
     subprocess.check_call(command)
 
     if unlink:
