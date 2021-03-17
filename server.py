@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import multiprocessing
 import subprocess
@@ -23,7 +24,7 @@ def _relpath(c, videopath):
 
 
 @cherrypy.expose
-class Api:
+class VideoApi:
     def __init__(self, cache_):
         self.cache = cache_
 
@@ -31,14 +32,16 @@ class Api:
     def GET(self, videoid=None, action=None, formatstr=None, subdir=''):
         if videoid is None:
             self.cache.reload()
+            subdir = subdir.strip('/')
             videos = [
                 {
                     "id": i,
                     "relpath": _relpath(self.cache, self.cache[i].path),
-                } for i in self.cache
+                    "thumbnail": self.cache[i].load_meta()["thumbnail"],
+                }
+                for i in self.cache
+                if _relpath(self.cache, self.cache[i].path).startswith(subdir)
             ]
-            subdir = subdir.strip('/')
-            videos = [v for v in videos if v['relpath'].startswith(subdir)]
             return videos
 
         video = self.cache[videoid]
@@ -86,10 +89,29 @@ class Api:
     @cherrypy.tools.json_in()
     def POST(self):
         url = cherrypy.request.json['url']
+        logging.critical('POST url: %r', url)
         json_bytes = subprocess.check_output(['youtube-dl', '--dump-json', url])
         info = json.loads(json_bytes)
         self.cache.async_add(info["id"])
         return info
+
+
+@cherrypy.expose
+class SubdirsApi:
+    def __init__(self, cache_):
+        self.cache = cache_
+
+    @cherrypy.tools.json_out()
+    def GET(self):
+        return [
+            {
+                'name': s,
+                'folder_jpg': None,
+            }
+            for s in os.listdir(self.cache._subdir)
+            if os.path.isdir(os.path.join(self.cache._subdir, s))
+            and not s.startswith('.')
+        ]
 
 
 def main():
@@ -98,12 +120,29 @@ def main():
     parser.add_argument('--subdir', default=os.path.join(os.path.dirname(__file__), 'gitignore'))
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO)
+
     terminate_event = multiprocessing.Event()
     monitor = multiprocessing.Process(
         target=cache.monitor,
         args=(args.subdir, terminate_event),
     )
-    monitor.start()
+
+    def start():
+        logging.critical('starting monitor subprocess')
+        monitor.start()
+
+    def stop():
+        logging.critical('stopping monitor subprocess')
+        terminate_event.set()
+        monitor.join()
+        logging.critical('stopped monitor subprocess')
+
+    #
+    # https://stackoverflow.com/questions/11078254/how-to-detect-if-cherrypy-is-shutting-down
+    #
+    cherrypy.engine.subscribe('start', start)
+    cherrypy.engine.subscribe('stop', stop)
 
     root = os.path.abspath(os.path.dirname(__file__))
     conf = {
@@ -116,6 +155,9 @@ def main():
         '/videos': {
             'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
         },
+        '/subdirs': {
+            'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
+        },
         '/static': {
             'tools.staticdir.on': True,
             'tools.staticdir.dir': os.path.join(root, 'static'),
@@ -123,13 +165,9 @@ def main():
     }
     cache_ = cache.Cache(args.subdir)
     server = Server(cache_)
-    server.videos = Api(cache_)
-    try:
-        cherrypy.quickstart(server, '/', conf)
-    finally:
-        terminate_event.set()
-        monitor.terminate()
-        # monitor.join()
+    server.videos = VideoApi(cache_)
+    server.subdirs = SubdirsApi(cache_)
+    cherrypy.quickstart(server, '/', conf)
 
 
 if __name__ == '__main__':

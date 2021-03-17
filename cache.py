@@ -8,9 +8,11 @@ import time
 import urllib.request
 
 _TO_ADD = '.to-add'
+_INFO_SUFFIX = '.info.json'
+_THUMB_SUFFIX = '-thumb.jpg'
 
 
-def monitor(subdir, terminate_event, sleep_seconds=60):
+def monitor(subdir, terminate_event, sleep_seconds=10):
     cache = Cache(subdir)
     to_add_subdir = os.path.join(subdir, _TO_ADD)
     os.makedirs(to_add_subdir, exist_ok=True)
@@ -18,7 +20,10 @@ def monitor(subdir, terminate_event, sleep_seconds=60):
     while not terminate_event.is_set():
         for videoid in os.listdir(to_add_subdir):
             logging.info('adding %s', videoid)
-            cache.add(videoid)
+            try:
+                cache.add(videoid)
+            except ValueError:
+                pass
             os.unlink(os.path.join(to_add_subdir, videoid))
         logging.info('sleeping for %ds', sleep_seconds)
         time.sleep(sleep_seconds)
@@ -63,7 +68,7 @@ class Video:
     @property
     def files(self):
         stem, _ = os.path.splitext(self._filename)
-        return (self._filename, stem + '.info.json', stem + '-thumb.jpg')
+        return (self._filename, stem + _INFO_SUFFIX, stem + _THUMB_SUFFIX)
 
     @property
     def path(self):
@@ -72,12 +77,12 @@ class Video:
     @property
     def meta_path(self):
         stem, _ = os.path.splitext(self._filename)
-        return os.path.join(self._subdir, stem + '.info.json')
+        return os.path.join(self._subdir, stem + _INFO_SUFFIX)
 
     @property
     def thumb_path(self):
         stem, _ = os.path.splitext(self._filename)
-        return os.path.join(self._subdir, stem + '-thumb.jpg')
+        return os.path.join(self._subdir, stem + _THUMB_SUFFIX)
 
     @property
     def subdir(self):
@@ -171,8 +176,8 @@ class Cache:
 
         destination_files = (
             abspath,
-            abs_stem + '.info.json',
-            abs_stem + '-thumb.jpg',
+            abs_stem + _INFO_SUFFIX,
+            abs_stem + _THUMB_SUFFIX,
         )
         for f in destination_files:
             assert not os.path.isfile(f), 'destination %r already exists' % f
@@ -181,8 +186,10 @@ class Cache:
             os.path.join(video._subdir, f)
             for f in video.files
         ]
-        os.makedirs(os.path.dirname(abspath), exist_ok=True)
+        for f in source_files:
+            assert os.path.isfile(f), 'source %r does not exist' % f
 
+        os.makedirs(os.path.dirname(abspath), exist_ok=True)
         for src, dst in zip(source_files, destination_files):
             print('mv %r %r' % (src, dst))
             os.rename(src, dst)
@@ -193,7 +200,7 @@ class Cache:
 def _postprocess_thumbnail(input_path, output_path=None, unlink=True):
     if output_path is None:
         stem, ext = os.path.splitext(input_path)
-        output_path = stem + '-thumb.jpeg'
+        output_path = stem + _THUMB_SUFFIX
     assert output_path
     assert output_path != input_path
 

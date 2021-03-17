@@ -22,7 +22,6 @@ function reducer(state, action) {
       }
       return {...state};
     case 'VIDEOLIST_LOADED':
-      // console.debug(action);
       const videos = {};
       for (let i = 0; i < action.payload.length; ++i) {
         action.payload[i].meta = null;
@@ -34,6 +33,11 @@ function reducer(state, action) {
         videoList: action.payload,
         videos: videos,
       };
+    case 'SUBDIRS_LOADED':
+      return {
+        ...state,
+        allSubdirs: action.payload,
+      }
     default:
       throw new Error(`unsupported action.type: ${action.type}`);
   }
@@ -100,18 +104,25 @@ const SubdirSelector = ({state, dispatchState}) => {
     dispatchState({type: 'CURRENT_SUBDIR_UPDATED', payload: event.target.value});
   };
 
-  const handleClick = event => {
-    console.debug('SubdirSelector.handleClick', event.target.value);
-    loadSubdir(state, dispatchState);
+  const handleSubmit = event => {
+    console.debug('SubdirSelector.handleSubmit', event.target.value);
     event.preventDefault();
+  };
+
+  const handleClick = event => {
+    console.debug('SubdirSelector.handleClick', event.target.textContent)
+    dispatchState({type: 'CURRENT_SUBDIR_UPDATED', payload: event.target.textContent});
   };
 
   return (
     <div className="SubdirSelector">
       <form>
         <input type="text" onChange={handleChange} value={state.currentSubdir} />
-        <button type="submit" onClick={handleClick}>Go</button>
+        <button type="submit" onClick={handleSubmit}>Go</button>
       </form>
+      <ul>
+        {state.allSubdirs.map(subdir => <button type="button" key={`SubdirSelector_${subdir.name}`} onClick={handleClick} >{subdir.name}</button>)}
+      </ul>
     </div>
   );
 };
@@ -135,20 +146,25 @@ function loadSubdir(state, dispatchState) {
       dispatchState({type: 'VIDEOLIST_LOADED', payload: response});
       loadVideos(response, 0);
     });
+
+  fetch('/subdirs')
+    .then(response => response.json())
+    .then(response => dispatchState({type: 'SUBDIRS_LOADED', payload: response}));
 }
 
 function App() {
   const defaultState = {
     videoList: [],
     currentSubdir: 'unsorted',
+    allSubdirs: [],
   };
   const [state, dispatchState] = React.useReducer(reducer, defaultState);
 
-  React.useEffect(() => loadSubdir(state, dispatchState), []);
+  React.useEffect(() => loadSubdir(state, dispatchState), [state.currentSubdir]);
 
   return (
     <div>
-      <h2>Videos</h2>
+      <h2>{state.currentSubdir} Videos</h2>
       <SubdirSelector state={state} dispatchState={dispatchState} />
       <div className="VideoList">
         {state.videoList.map(v => <Video key={`Video_${v.id}`} video={v} state={state} dispatchState={dispatchState} />)}
