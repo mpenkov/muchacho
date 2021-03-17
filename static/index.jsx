@@ -48,8 +48,9 @@ const Video = ({video, state, dispatchState}) => {
   if (video.meta) {
     thumbnail = video.meta.thumbnail;
   }
-  const handleKeyPress = event => {
-    const formatstr = encodeURIComponent(event.target.value);
+  
+  function validateFormatstr(formatstr) {
+    formatstr = encodeURIComponent(formatstr);
     const url = `/videos/${video.id}/preview_relpath?formatstr=${formatstr}`;
     // console.debug('handleKeyPress', event.target.value, url);
     fetch(url)
@@ -62,13 +63,15 @@ const Video = ({video, state, dispatchState}) => {
           }
         );
       });
-  };
-  const handleClick = event => {
-    const videoIndex = state.videos[video.id];
+  }
+
+  const handleKeyPress = event => validateFormatstr(event.target.value);
+
+  function renameVideo(newName) {
     const url = `/videos/${video.id}`;
     const params = {
       method: 'PUT',
-      body: JSON.stringify({relpath: state.videoList[videoIndex].relpath}),
+      body: JSON.stringify({relpath: newName}),
       headers: {'Content-Type': 'application/json'},
     };
     fetch(url, params)
@@ -81,16 +84,38 @@ const Video = ({video, state, dispatchState}) => {
           }
         );
       });
-  };
+  }
+
+  const handleRenameClicked = event => renameVideo(selection);
   let dirtyClass = video.dirtyFlag ? "dirty" : "";
+
+  const [selection, setSelection] = React.useState(state.currentSubdir);
+  const handleSelect = event => {console.debug('handleSelect', event.target.value); setSelection(event.target.value)};
+  const handleMoveClicked = event => renameVideo(selection);
+
+  const handleTitleClicked = event => validateFormatstr("%(title)s.%(ext)s");
+  const handleDateClicked = event => validateFormatstr("%(upload_date)s.%(ext)s");
+
   return (
     <div className="Video">
       <img className="VideoThumbnail" src={thumbnail} />
       <span className="VideoMetadata">
         <span className="VideoId">{video.id}</span>
         <span className={`VideoPath ${dirtyClass}`}>{video.relpath}</span>
-        <input type="text" placeholder="formatstr" onKeyUp={handleKeyPress} />
-        <button type="button" onClick={handleClick}>Rename</button>
+
+        <span className="VideoMover">
+          <label>Move to:</label>
+          <select onChange={handleSelect} value={selection} >
+            {state.allSubdirs.map(subdir => <option key={`Video_${video.id}_subdir_${subdir.name}`} >{subdir.name}</option>)}
+          </select>
+          <button type="button" onClick={handleMoveClicked} disabled={selection === video.subdir}>Move</button>
+        </span>
+        <span className="VideoRenamer">
+          <input type="text" placeholder="formatstr" onKeyUp={handleKeyPress} />
+          <button type="button" onClick={handleRenameClicked}>Rename</button>
+          <button type="button" onClick={handleTitleClicked}>Title</button>
+          <button type="button" onClick={handleDateClicked}>Date</button>
+        </span>
       </span>
       
     </div>
@@ -99,13 +124,15 @@ const Video = ({video, state, dispatchState}) => {
 
 const SubdirSelector = ({state, dispatchState}) => {
   // TODO: show a graphical layout of existing prefixes as well as text entry
+  const [text, setText] = React.useState("unsorted");
+
   const handleChange = event => {
     console.debug('SubdirSelector.handleChange', event.target.value);
-    dispatchState({type: 'CURRENT_SUBDIR_UPDATED', payload: event.target.value});
+    setText(event.target.value);
   };
 
   const handleSubmit = event => {
-    console.debug('SubdirSelector.handleSubmit', event.target.value);
+    dispatchState({type: 'CURRENT_SUBDIR_UPDATED', payload: text});
     event.preventDefault();
   };
 
@@ -117,7 +144,7 @@ const SubdirSelector = ({state, dispatchState}) => {
   return (
     <div className="SubdirSelector">
       <form>
-        <input type="text" onChange={handleChange} value={state.currentSubdir} />
+        <input type="text" onChange={handleChange} value={text} />
         <button type="submit" onClick={handleSubmit}>Go</button>
       </form>
       <ul>
@@ -164,8 +191,8 @@ function App() {
 
   return (
     <div>
-      <h2>{state.currentSubdir} Videos</h2>
       <SubdirSelector state={state} dispatchState={dispatchState} />
+      <h2>{state.currentSubdir} Videos</h2>
       <div className="VideoList">
         {state.videoList.map(v => <Video key={`Video_${v.id}`} video={v} state={state} dispatchState={dispatchState} />)}
       </div>

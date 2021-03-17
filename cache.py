@@ -172,6 +172,9 @@ class Cache:
 
     def rename(self, video, relpath):
         abspath = os.path.join(self._subdir, relpath)
+        if os.path.isdir(abspath):
+            abspath = os.path.join(abspath, video.filename)
+
         abs_stem, ext = os.path.splitext(abspath)
 
         destination_files = (
@@ -195,6 +198,8 @@ class Cache:
             os.rename(src, dst)
 
         video.reload(abspath)
+
+        return os.path.relpath(abspath, start=self._subdir)
 
 
 def _postprocess_thumbnail(input_path, output_path=None, unlink=True):

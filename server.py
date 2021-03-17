@@ -36,6 +36,8 @@ class VideoApi:
             videos = [
                 {
                     "id": i,
+                    "filename": self.cache[i].filename,
+                    "subdir": self.cache[i].subdir,
                     "relpath": _relpath(self.cache, self.cache[i].path),
                     "thumbnail": self.cache[i].load_meta()["thumbnail"],
                 }
@@ -79,7 +81,7 @@ class VideoApi:
     def PUT(self, videoid):
         video = self.cache[videoid]
         relpath = cherrypy.request.json['relpath']
-        self.cache.rename(video, relpath)
+        relpath = self.cache.rename(video, relpath)
         return {
             'id': videoid,
             'relpath': relpath,
@@ -108,7 +110,7 @@ class SubdirsApi:
                 'name': s,
                 'folder_jpg': None,
             }
-            for s in os.listdir(self.cache._subdir)
+            for s in sorted(os.listdir(self.cache._subdir))
             if os.path.isdir(os.path.join(self.cache._subdir, s))
             and not s.startswith('.')
         ]
