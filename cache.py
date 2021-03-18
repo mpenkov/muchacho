@@ -167,6 +167,7 @@ class Cache:
             thumb_path = os.path.join(subdir, thumb_name)
             if os.path.isfile(thumb_path):
                 _postprocess_thumbnail(thumb_path)
+                break
         else:
             assert False, 'could not find downloaded thumbnail for video'
 

@@ -51,6 +51,8 @@ class VideoApi:
         if action is None:
             return {
                 'id': videoid,
+                'filename': video.filename,
+                'subdir': video.subdir,
                 'relpath': _relpath(self.cache, video.path),
                 'meta': video.load_meta(),
             }

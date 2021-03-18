@@ -1,0 +1,40 @@
+body {
+  font-family: helvetica;
+}
+
+.target {
+  width: 200px;
+  height: 133px;
+  background-color: gray;
+}
+
+.success {
+  background-color: green;
+}
+
+.failure {
+  background-color: red;
+}
+
+.VideoThumbnail {
+  width: 200px;
+  height: 133px;
+}
+
+.dirty {
+  color: red;
+}
+
+.Video {
+  display: grid;
+  grid-template-rows: 150px;
+  grid-template-columns: 200px 1fr;
+  grid-gap: 10px;
+  margin: 10px;
+  border-color: lightgray;
+  border-style: none none solid none;
+}
+
+.VideoMetadata {
+  display: grid;
+}

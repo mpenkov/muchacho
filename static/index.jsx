@@ -11,7 +11,6 @@ function reducer(state, action) {
       {
         let videoIndex = state.videos[action.payload.videoid];
         state.videoList[videoIndex].relpath = action.payload.path;
-        state.videoList[videoIndex].dirtyFlag = action.payload.dirty;
       }
       return {...state};
     case 'VIDEO_LOADED':
@@ -25,7 +24,6 @@ function reducer(state, action) {
       const videos = {};
       for (let i = 0; i < action.payload.length; ++i) {
         action.payload[i].meta = null;
-        action.payload[i].dirtyFlag = false;
         videos[action.payload[i].id] = i;
       }
       return {
@@ -44,6 +42,11 @@ function reducer(state, action) {
 }
 
 const Video = ({video, state, dispatchState}) => {
+  console.debug('Video', video);
+  const [selection, setSelection] = React.useState(state.currentSubdir);
+  const [formatstr, setFormatstr] = React.useState(video.filename);
+  const [dirty, setDirty] = React.useState(false);
+
   let thumbnail = "https://via.placeholder.com/200x133";
   if (video.meta) {
     thumbnail = video.meta.thumbnail;
@@ -52,20 +55,23 @@ const Video = ({video, state, dispatchState}) => {
   function validateFormatstr(formatstr) {
     formatstr = encodeURIComponent(formatstr);
     const url = `/videos/${video.id}/preview_relpath?formatstr=${formatstr}`;
-    // console.debug('handleKeyPress', event.target.value, url);
     fetch(url)
       .then(response => response.json())
       .then(response => {
         dispatchState(
           {
             type: 'PATH_UPDATED',
-            payload: {videoid: video.id, path: response.relpath, dirty: true}
+            payload: {videoid: video.id, path: response.relpath}
           }
         );
       });
   }
 
-  const handleKeyPress = event => validateFormatstr(event.target.value);
+  const handleChange = event => {
+    setFormatstr(event.target.value);
+    validateFormatstr(event.target.value);
+    setDirty(true);
+  };
 
   function renameVideo(newName) {
     const url = `/videos/${video.id}`;
@@ -80,29 +86,49 @@ const Video = ({video, state, dispatchState}) => {
         dispatchState(
           {
             type: 'PATH_UPDATED',
-            payload: {videoid: video.id, path: response.relpath, dirty: false}
+            payload: {videoid: video.id, path: response.relpath}
           }
         );
-      });
+      })
+      .then(() => setDirty(false));
   }
 
-  const handleRenameClicked = event => renameVideo(selection);
-  let dirtyClass = video.dirtyFlag ? "dirty" : "";
+  const handleRenameClicked = event => renameVideo(video.relpath);
 
-  const [selection, setSelection] = React.useState(state.currentSubdir);
+  let dirtyClass = dirty ? "dirty" : "";
   const handleSelect = event => {console.debug('handleSelect', event.target.value); setSelection(event.target.value)};
   const handleMoveClicked = event => renameVideo(selection);
 
-  const handleTitleClicked = event => validateFormatstr("%(title)s.%(ext)s");
-  const handleDateClicked = event => validateFormatstr("%(upload_date)s.%(ext)s");
+  function applyPreset(preset) {
+    setFormatstr(preset);
+    validateFormatstr(preset);
+    setDirty(true);
+  }
+
+  const handleFilenameClicked = event => {console.debug(video); applyPreset(video.filename)};
+  const handleTitleClicked = event => applyPreset("%(title)s.%(ext)s");
+  const handleDateClicked = event => applyPreset("%(upload_date)s.%(ext)s");
+
+  let title = "";
+  if (video.meta) {
+    title = video.meta.title;
+  }
 
   return (
     <div className="Video">
-      <img className="VideoThumbnail" src={thumbnail} />
+      <span className="VideoThumbnailWrapper">
+        <a href={`https://youtu.be/${video.id}`}>
+          <img className="VideoThumbnail" src={thumbnail} />
+        </a>
+      </span>
       <span className="VideoMetadata">
-        <span className="VideoId">{video.id}</span>
-        <span className={`VideoPath ${dirtyClass}`}>{video.relpath}</span>
-
+        <span className="VideoTitle">
+          <a href={`https://youtu.be/${video.id}`}>{title}</a>
+        </span>
+        <span>
+          <label>Filename:</label>
+          <span className={`VideoPath ${dirtyClass}`}>{video.relpath}</span>
+        </span>
         <span className="VideoMover">
           <label>Move to:</label>
           <select onChange={handleSelect} value={selection} >
@@ -111,10 +137,15 @@ const Video = ({video, state, dispatchState}) => {
           <button type="button" onClick={handleMoveClicked} disabled={selection === video.subdir}>Move</button>
         </span>
         <span className="VideoRenamer">
-          <input type="text" placeholder="formatstr" onKeyUp={handleKeyPress} />
-          <button type="button" onClick={handleRenameClicked}>Rename</button>
+          <span>Rename presets:</span>
+          <button type="button" onClick={handleFilenameClicked}>Filename</button>
           <button type="button" onClick={handleTitleClicked}>Title</button>
           <button type="button" onClick={handleDateClicked}>Date</button>
+        </span>
+        <span className="VideoFormatstr">
+          <span>formatstr:</span>
+          <input type="text" placeholder="formatstr" onChange={handleChange} value={formatstr} />
+          <button type="button" onClick={handleRenameClicked}>Rename</button>
         </span>
       </span>
       
