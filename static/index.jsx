@@ -13,17 +13,9 @@ function reducer(state, action) {
         state.videoList[videoIndex].relpath = action.payload.path;
       }
       return {...state};
-    case 'VIDEO_LOADED':
-      console.debug(action);
-      {
-        let videoIndex = state.videos[action.payload.id];
-        state.videoList[videoIndex] = action.payload;
-      }
-      return {...state};
     case 'VIDEOLIST_LOADED':
       const videos = {};
       for (let i = 0; i < action.payload.length; ++i) {
-        action.payload[i].meta = null;
         videos[action.payload[i].id] = i;
       }
       return {
@@ -47,11 +39,6 @@ const Video = ({video, state, dispatchState}) => {
   const [formatstr, setFormatstr] = React.useState(video.filename);
   const [dirty, setDirty] = React.useState(false);
 
-  let thumbnail = "https://via.placeholder.com/200x133";
-  if (video.meta) {
-    thumbnail = video.meta.thumbnail;
-  }
-  
   function validateFormatstr(formatstr) {
     formatstr = encodeURIComponent(formatstr);
     const url = `/videos/${video.id}/preview_relpath?formatstr=${formatstr}`;
@@ -109,21 +96,16 @@ const Video = ({video, state, dispatchState}) => {
   const handleTitleClicked = event => applyPreset("%(title)s.%(ext)s");
   const handleDateClicked = event => applyPreset("%(upload_date)s.%(ext)s");
 
-  let title = "";
-  if (video.meta) {
-    title = video.meta.title;
-  }
-
   return (
     <div className="Video">
       <span className="VideoThumbnailWrapper">
         <a href={`https://youtu.be/${video.id}`}>
-          <img className="VideoThumbnail" src={thumbnail} />
+          <img className="VideoThumbnail" src={video.meta.thumbnail} />
         </a>
       </span>
       <span className="VideoMetadata">
         <span className="VideoTitle">
-          <a href={`https://youtu.be/${video.id}`}>{title}</a>
+          <a href={`https://youtu.be/${video.id}`}>{video.meta.title}</a>
         </span>
         <span>
           <label>Filename:</label>
@@ -186,28 +168,15 @@ const SubdirSelector = ({state, dispatchState}) => {
 };
 
 function loadSubdir(state, dispatchState) {
-  function loadVideos(videoList, index) {
-    if (index < videoList.length) {
-      fetch(`/videos/${videoList[index].id}`)
-        .then(response => response.json())
-        .then(response => {
-          dispatchState({type: 'VIDEO_LOADED', payload: response});
-          loadVideos(videoList, index + 1);
-        });
-    }
-  }
-
-  const encodedSubdir = encodeURIComponent(state.currentSubdir);
-  fetch(`/videos?subdir=${encodedSubdir}`)
-    .then(response => response.json())
-    .then(response => {
-      dispatchState({type: 'VIDEOLIST_LOADED', payload: response});
-      loadVideos(response, 0);
-    });
-
   fetch('/subdirs')
     .then(response => response.json())
-    .then(response => dispatchState({type: 'SUBDIRS_LOADED', payload: response}));
+    .then(response => dispatchState({type: 'SUBDIRS_LOADED', payload: response}))
+    .then(() => {
+      const encodedSubdir = encodeURIComponent(state.currentSubdir);
+      fetch(`/videos?subdir=${encodedSubdir}`)
+        .then(response => response.json())
+        .then(response => dispatchState({type: 'VIDEOLIST_LOADED', payload: response}));
+    });
 }
 
 function App() {

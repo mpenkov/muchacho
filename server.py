@@ -39,11 +39,16 @@ class VideoApi:
                     "filename": self.cache[i].filename,
                     "subdir": self.cache[i].subdir,
                     "relpath": _relpath(self.cache, self.cache[i].path),
-                    "thumbnail": self.cache[i].load_meta()["thumbnail"],
                 }
                 for i in self.cache
                 if _relpath(self.cache, self.cache[i].path).startswith(subdir)
             ]
+            for v in videos:
+                meta = self.cache[v['id']].load_meta()
+                v['meta'] = {
+                    'title': meta['title'],
+                    'thumbnail': meta['thumbnail'],
+                }
             return videos
 
         video = self.cache[videoid]
