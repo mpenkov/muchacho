@@ -179,6 +179,49 @@ function loadSubdir(state, dispatchState) {
     });
 }
 
+const DragTarget = () => {
+  function handleDragOver(event) {
+    // console.debug(event);
+    event.preventDefault();
+  }
+
+  function handleChange(event) {
+    // console.debug(event);
+    event.preventDefault();
+    const url = event.dataTransfer.getData("text");
+    console.debug("url", url);
+
+    const params = {
+      method: "POST",
+      body: JSON.stringify({"url": url}),
+      headers: {"Content-Type": "application/json"},
+    };
+    const target = document.querySelector("#drag-target");
+    fetch("/videos", params)
+      .then(response => {
+        target.classList.add("success");
+        setTimeout(() => target.classList.remove("success"), 1000);
+      })
+      .catch(error => {
+        console.debug("error", error);
+        target.classList.add("failure");
+        setTimeout(() => target.classList.remove("failure"), 1000);
+      });
+  }
+
+  return (
+    <div id="drag-target" className="Video" onDrop={handleChange} onDragOver={handleDragOver} >
+      <div id="drag-target" className="target VideoThumbnailWrapper">
+      </div>
+      <div className="VideoMetadata">
+        <p>
+        Drag and drop a YouTube video from <a href="https://www.youtube.com/feed/history">your history</a> here to add it to the cache.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const defaultState = {
     videoList: [],
@@ -191,9 +234,11 @@ function App() {
 
   return (
     <div>
+      <h1>Muchacho</h1>
       <SubdirSelector state={state} dispatchState={dispatchState} />
       <h2>{state.currentSubdir} Videos</h2>
       <div className="VideoList">
+        <DragTarget />
         {state.videoList.map(v => <Video key={`Video_${v.id}`} video={v} state={state} dispatchState={dispatchState} />)}
       </div>
     </div>
