@@ -49,7 +49,7 @@ class VideoApi:
                     'title': meta['title'],
                     'thumbnail': meta['thumbnail'],
                 }
-            return videos
+            return sorted(videos, key=lambda v: v['filename'])
 
         video = self.cache[videoid]
 
@@ -93,6 +93,11 @@ class VideoApi:
             'id': videoid,
             'relpath': relpath,
         }
+
+    def DELETE(self, videoid):
+        video = self.cache[videoid]
+        video.delete()
+        return None
 
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()

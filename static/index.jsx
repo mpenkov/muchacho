@@ -13,6 +13,9 @@ function reducer(state, action) {
         state.videoList[videoIndex].relpath = action.payload.path;
       }
       return {...state};
+    case 'VIDEO_DELETED':
+      state.videoList.splice(action.payload, 1)
+      return {...state};
     case 'VIDEOLIST_LOADED':
       const videos = {};
       for (let i = 0; i < action.payload.length; ++i) {
@@ -96,6 +99,11 @@ const Video = ({video, state, dispatchState}) => {
   const handleTitleClicked = event => applyPreset("%(title)s.%(ext)s");
   const handleDateClicked = event => applyPreset("%(upload_date)s.%(ext)s");
 
+  const deleteClicked = event => {
+    fetch(`/videos/${video.id}`, {method: 'DELETE'})
+      .then(dispatchState({type: 'VIDEO_DELETED', payload: video.id}));
+  };
+
   return (
     <div className="Video">
       <span className="VideoThumbnailWrapper">
@@ -110,6 +118,7 @@ const Video = ({video, state, dispatchState}) => {
         <span>
           <label>Filename:</label>
           <span className={`VideoPath ${dirtyClass}`}>{video.relpath}</span>
+          <button type="button" onClick={deleteClicked}>Delete video</button>
         </span>
         <span className="VideoMover">
           <label>Move to:</label>

@@ -99,6 +99,10 @@ class Video:
     def __repr__(self):
         return 'Video(%r)' % os.path.join(self._subdir, self._filename)
 
+    def delete(self):
+        for p in (self.path, self.thumb_path, self.meta_path):
+            os.unlink(p)
+
 
 class Cache:
     def __init__(self, subdir):
