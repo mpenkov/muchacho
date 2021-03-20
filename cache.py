@@ -20,10 +20,15 @@ def monitor(subdir, terminate_event, sleep_seconds=30):
     os.makedirs(to_add_subdir, exist_ok=True)
 
     while not terminate_event.is_set():
-        for videoid in os.listdir(to_add_subdir):
-            logging.info('adding %s', videoid)
-            cache.add(videoid)
-            os.unlink(os.path.join(to_add_subdir, videoid))
+        for f in os.listdir(to_add_subdir):
+            if f.endswith('.json'):
+                path = os.path.join(to_add_subdir, f)
+                with open(path) as fin:
+                    info = json.load(fin)
+
+                logging.info('adding %r', info)
+                cache.add(videoid=info['id'], subdir=info.get('subdir'))
+                os.unlink(path)
         logging.info('sleeping for %ds', sleep_seconds)
         time.sleep(sleep_seconds)
 
@@ -143,13 +148,13 @@ class Cache:
     def items(self):
         return self._videos.items()
 
-    def async_add(self, videoid):
+    def async_add(self, videoid, subdir=None):
         path = os.path.join(self._subdir, _TO_ADD)
         os.makedirs(path, exist_ok=True)
-        with open(os.path.join(path, videoid), 'wb'):
-            pass
+        with open(os.path.join(path, videoid) + '.json', 'w') as fout:
+            json.dump({'id': videoid, 'subdir': subdir}, fout)
 
-    def add(self, videoid):
+    def add(self, videoid, subdir=None):
         try:
             video = self._videos[videoid]
         except KeyError:
@@ -169,8 +174,12 @@ class Cache:
             '--',
             videoid,
         ]
-        subdir = os.path.join(self._subdir, 'unsorted')
-        os.makedirs(subdir, exist_ok=True)
+        if subdir is None:
+            subdir = os.path.join(self._subdir, 'unsorted')
+            os.makedirs(subdir, exist_ok=True)
+        else:
+            subdir = os.path.join(self._subdir, subdir.strip('/'))
+
         json_bytes = subprocess.check_output(command, cwd=subdir)
         json_str = json_bytes.decode('utf-8')
         info = json.loads(json_str)

@@ -191,7 +191,9 @@ function loadSubdir(state, dispatchState) {
     });
 }
 
-const DragTarget = () => {
+const DragTarget = ({state, dispatchState}) => {
+  const [url, setUrl] = React.useState("youtu.be/sfwMulCeHNw")
+
   function handleDragOver(event) {
     // console.debug(event);
     event.preventDefault();
@@ -200,12 +202,14 @@ const DragTarget = () => {
   function handleChange(event) {
     // console.debug(event);
     event.preventDefault();
-    const url = event.dataTransfer.getData("text");
-    console.debug("url", url);
+    const draggedUrl = event.dataTransfer.getData("text");
+    download(draggedUrl);
+  }
 
+  function download(url, subdir) {
     const params = {
       method: "POST",
-      body: JSON.stringify({"url": url}),
+      body: JSON.stringify({"url": url, "subdir": state.currentSubdir}),
       headers: {"Content-Type": "application/json"},
     };
     const target = document.querySelector("#drag-target");
@@ -221,13 +225,21 @@ const DragTarget = () => {
       });
   }
 
+  const handleUrlChange = event => setUrl(event.target.value);
+  const handleClick = event => download(url);
+
   return (
-    <div id="drag-target" className="Video" onDrop={handleChange} onDragOver={handleDragOver} >
+    <div className="Video" onDrop={handleChange} onDragOver={handleDragOver} >
       <div id="drag-target" className="target VideoThumbnailWrapper">
       </div>
       <div className="VideoMetadata">
         <p>
         Drag and drop a YouTube video from <a href="https://www.youtube.com/feed/history">your history</a> here to add it to the cache.
+        </p>
+        <p>
+          Alternatively, enter a YouTube URL and click Add:
+          <input type="text" value={url} onChange={handleUrlChange} />
+          <button type="button" onClick={handleClick}>Add</button>
         </p>
       </div>
     </div>
@@ -250,7 +262,7 @@ function App() {
       <SubdirSelector state={state} dispatchState={dispatchState} />
       <h2>{state.currentSubdir} Videos</h2>
       <div className="VideoList">
-        <DragTarget />
+        <DragTarget state={state} dispatchState={dispatchState} />
         {state.videoList.map(v => <Video key={`Video_${v.id}`} video={v} state={state} dispatchState={dispatchState} />)}
       </div>
     </div>

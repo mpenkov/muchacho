@@ -113,7 +113,7 @@ class VideoApi:
         logging.critical('POST url: %r', url)
         json_bytes = subprocess.check_output(['youtube-dl', '--dump-json', url])
         info = json.loads(json_bytes)
-        self.cache.async_add(info["id"])
+        self.cache.async_add(info["id"], subdir=cherrypy.request.json.get('subdir'))
         return info
 
 
