@@ -118,6 +118,9 @@ const Video = ({video, state, dispatchState}) => {
         <span>
           <label>Filename:</label>
           <span className={`VideoPath ${dirtyClass}`}>{video.relpath}</span>
+          <a href={`/player/${video.id}`} target="new"><button type="button">Player</button></a>
+          <a href={`/videos/${video.id}`} target="new"><button type="button">JSON</button></a>
+          <a href={`/videos/${video.id}/ffprobe`} target="new"><button type="button">ffprobe</button></a>
           <button type="button" onClick={deleteClicked}>Delete video</button>
         </span>
         <span className="VideoMover">

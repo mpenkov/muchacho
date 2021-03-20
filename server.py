@@ -18,6 +18,12 @@ class Server:
         with open("static/index.html") as fin:
             return fin.read()
 
+    @cherrypy.expose
+    def player(self, videoid):
+        src = "/cache/" + self.cache.relpath(videoid)
+        with open("static/player.html") as fin:
+            return fin.read().replace("{{ src }}", src)
+
 
 def _relpath(c, videopath):
     return os.path.relpath(videopath, start=c._subdir)
@@ -68,8 +74,6 @@ class VideoApi:
             else:
                 formatstr = os.path.join(video.subdir, formatstr)
 
-            print(formatstr)
-
             try:
                 path = formatstr % video.load_meta()
             except ValueError:
@@ -80,6 +84,9 @@ class VideoApi:
                 'id': videoid,
                 'relpath': _relpath(self.cache, path)
             }
+
+        if action == 'ffprobe':
+            return video.ffprobe()
 
         raise NotImplementedError
 
@@ -175,6 +182,10 @@ def main():
         '/static': {
             'tools.staticdir.on': True,
             'tools.staticdir.dir': os.path.join(root, 'static'),
+        },
+        '/cache': {
+            'tools.staticdir.on': True,
+            'tools.staticdir.dir': args.subdir,
         },
     }
     cache_ = cache.Cache(args.subdir)

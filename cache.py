@@ -104,6 +104,11 @@ class Video:
         for p in (self.path, self.thumb_path, self.meta_path):
             os.unlink(p)
 
+    def ffprobe(self):
+        command = 'ffprobe -show_streams -print_format json'.split() + [self._path]
+        json_bytes = subprocess.check_output(command)
+        return json.loads(json_bytes)
+
 
 class Cache:
     def __init__(self, subdir):
@@ -232,6 +237,9 @@ class Cache:
         self._videos[video.load_meta()['id']] = video
 
         return os.path.relpath(abspath, start=self._subdir)
+
+    def relpath(self, videoid):
+        return os.path.relpath(self._videos[videoid].path, start=self._subdir)
 
 
 def _postprocess_thumbnail(input_path, output_path=None, unlink=True):
