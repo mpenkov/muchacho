@@ -10,9 +10,11 @@ import urllib.request
 _TO_ADD = '.to-add'
 _INFO_SUFFIX = '.info.json'
 _THUMB_SUFFIX = '-thumb.jpg'
+_THUMB_EXT = ('.jpg', '.webp')
+_VIDEO_EXT = ('.mp4', '.avi', '.mkv', '.webm')
 
 
-def monitor(subdir, terminate_event, sleep_seconds=10):
+def monitor(subdir, terminate_event, sleep_seconds=30):
     cache = Cache(subdir)
     to_add_subdir = os.path.join(subdir, _TO_ADD)
     os.makedirs(to_add_subdir, exist_ok=True)
@@ -20,13 +22,12 @@ def monitor(subdir, terminate_event, sleep_seconds=10):
     while not terminate_event.is_set():
         for videoid in os.listdir(to_add_subdir):
             logging.info('adding %s', videoid)
-            try:
-                cache.add(videoid)
-            except ValueError:
-                pass
+            cache.add(videoid)
             os.unlink(os.path.join(to_add_subdir, videoid))
         logging.info('sleeping for %ds', sleep_seconds)
         time.sleep(sleep_seconds)
+
+        cache.reload()
 
 
 class Video:
@@ -117,7 +118,7 @@ class Cache:
                 continue
             for f in files:
                 stem, ext = os.path.splitext(f)
-                if ext.lower() in ('.mp4', '.avi', '.mkv', '.webm'):
+                if ext.lower() in _VIDEO_EXT:
                     video = Video(os.path.join(root, f))
                     try:
                         meta = video.load_meta()
@@ -144,12 +145,18 @@ class Cache:
             pass
 
     def add(self, videoid):
-        if videoid in self._videos:
-            raise ValueError('cache already contains video with id %r' % videoid)
+        try:
+            video = self._videos[videoid]
+        except KeyError:
+            rename_to = None
+        else:
+            rename_to = os.path.relpath(video.path, start=self._subdir)
+            video.delete()
+            del self._videos[videoid]
 
         command = [
             'youtube-dl',
-            '--format', 'best',
+            '--format', 'bestvideo+bestaudio/best',
             '--print-json',
             '--write-info-json',
             '--write-thumbnail',
@@ -166,17 +173,36 @@ class Cache:
         info.pop('requested_formats', None)
         print(json.dumps(info, indent=2, sort_keys=True))
 
-        for ext in ('.jpg', '.webp'):
+        for ext in _THUMB_EXT:
             thumb_name = info['id'] + ext
             thumb_path = os.path.join(subdir, thumb_name)
             if os.path.isfile(thumb_path):
                 _postprocess_thumbnail(thumb_path)
                 break
         else:
-            assert False, 'could not find downloaded thumbnail for video'
+            assert False, 'could not find thumbnail for video %(id)r' % info
+
+        if rename_to:
+            #
+            # NB. We could also reload the cache at this point, but that
+            # would be slower.
+            #
+            for f in os.listdir(subdir):
+                stem, ext = os.path.splitext(f)
+                if ext in _VIDEO_EXT:
+                    video = Video(os.path.join(subdir, f))
+                    break
+            else:
+                assert False, 'could not find video for video %(id)r' % info
+
+            self.rename(video, rename_to)
 
     def rename(self, video, relpath):
         abspath = os.path.join(self._subdir, relpath)
+        if video.path == abspath:
+            # Nothing to do
+            return
+
         if os.path.isdir(abspath):
             abspath = os.path.join(abspath, video.filename)
 
@@ -203,6 +229,7 @@ class Cache:
             os.rename(src, dst)
 
         video.reload(abspath)
+        self._videos[video.load_meta()['id']] = video
 
         return os.path.relpath(abspath, start=self._subdir)
 
